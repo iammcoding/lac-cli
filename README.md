@@ -1,4 +1,6 @@
-# 🐆 lac-cli
+![lac-cli](https://raw.githubusercontent.com/iammcoding/lac-cli/main/lacicon.png)
+
+# lac-cli
 
 lac-cli is a terminal shell built by [lacai.io](https://lacai.io) that brings AI directly into your command line. It autocompletes what you are typing in real time and understands plain English so you can describe what you want to do instead of memorizing commands.
 
