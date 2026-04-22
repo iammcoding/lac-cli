@@ -1,4 +1,4 @@
-![lac-cli](https://raw.githubusercontent.com/iammcoding/lac-cli/main/lacicon.png)
+<img src="https://raw.githubusercontent.com/iammcoding/lac-cli/main/lacicon.png" width="120" />
 
 # lac-cli
 
