@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LacMind — Settings</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { accent: '#16aefe' } } } }</script>
+<script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+<style>
+  body { background: #0a0a0a; color: #e5e5e5; font-family: 'Inter', system-ui, sans-serif; }
+  input, select { background: #111; border: 1px solid #222; color: #e5e5e5; }
+  input:focus, select:focus { outline: none; border-color: #16aefe; }
+  .model-card { background: #111; border: 1px solid #1e1e1e; }
+</style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+<header class="flex items-center justify-between px-8 py-5 border-b border-[#1a1a1a]">
+  <div class="flex items-center gap-3">
+    <img src="/lacicon.png" class="w-6 h-6" />
+    <span class="text-sm font-medium text-white">LacMind</span>
+    <span class="text-xs text-[#444] ml-1">settings</span>
+  </div>
+  <a href="/" class="text-xs text-[#444] hover:text-white transition-colors flex items-center gap-1">
+    <iconify-icon icon="lucide:arrow-left" width="13"></iconify-icon> back
+  </a>
+</header>
+
+<main class="flex-1 px-8 py-8 max-w-2xl mx-auto w-full">
+  <div id="error" class="hidden mb-4 px-4 py-3 bg-red-950 border border-red-800 text-red-400 text-sm rounded"></div>
+
+  <h2 class="text-sm font-medium text-white mb-4">Models</h2>
+  <div id="model-list" class="space-y-2 mb-8"></div>
+
+  <!-- add model -->
+  <h2 class="text-sm font-medium text-white mb-4">Add model</h2>
+  <div class="model-card rounded-lg p-5 mb-8">
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <div>
+        <label class="text-xs text-[#555] mb-1 block">Name</label>
+        <input id="f-name" type="text" placeholder="e.g. my-claude" class="w-full px-3 py-2 rounded text-sm" />
+      </div>
+      <div>
+        <label class="text-xs text-[#555] mb-1 block">Provider</label>
+        <select id="f-provider" class="w-full px-3 py-2 rounded text-sm" onchange="onProviderChange()">
+          <option value="openai">OpenAI</option>
+          <option value="claude">Claude</option>
+          <option value="ollama">Ollama (local)</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <div>
+        <label class="text-xs text-[#555] mb-1 block">Model</label>
+        <input id="f-model" type="text" class="w-full px-3 py-2 rounded text-sm" />
+      </div>
+      <div id="key-field">
+        <label class="text-xs text-[#555] mb-1 block">API Key</label>
+        <input id="f-key" type="password" placeholder="sk-..." class="w-full px-3 py-2 rounded text-sm" />
+      </div>
+    </div>
+    <div id="url-field" class="mb-3 hidden">
+      <label class="text-xs text-[#555] mb-1 block">Base URL</label>
+      <input id="f-url" type="text" class="w-full px-3 py-2 rounded text-sm" />
+    </div>
+    <button onclick="addModel()" class="w-full py-2 bg-accent text-black text-sm font-medium rounded hover:opacity-90 transition-opacity">
+      Add model
+    </button>
+  </div>
+
+  <!-- logout section -->
+  <div class="border-t border-[#1a1a1a] pt-8">
+    <h2 class="text-sm font-medium text-white mb-2">Danger Zone</h2>
+    <p class="text-xs text-[#555] mb-4">This will delete all your models and configuration.</p>
+    <button onclick="logout()" class="px-4 py-2 bg-red-950 border border-red-800 text-red-400 text-sm font-medium rounded hover:bg-red-900 transition-colors">
+      Logout & Reset
+    </button>
+  </div>
+</main>
+
+<script>
+const DEFAULTS = {
+  openai:  { model: 'gpt-4o-mini',               url: 'https://api.openai.com',    showKey: true,  showUrl: false },
+  claude:  { model: 'claude-haiku-4-5-20251001', url: 'https://api.anthropic.com', showKey: true,  showUrl: false },
+  ollama:  { model: 'llama3',                    url: 'http://localhost:11434',     showKey: false, showUrl: true  },
+  custom:  { model: '',                           url: '',                           showKey: true,  showUrl: true  },
+}
+
+function onProviderChange() {
+  const p = document.getElementById('f-provider').value
+  const d = DEFAULTS[p]
+  document.getElementById('f-model').value = d.model
+  document.getElementById('f-url').value = d.url
+  document.getElementById('key-field').classList.toggle('hidden', !d.showKey)
+  document.getElementById('url-field').classList.toggle('hidden', !d.showUrl)
+}
+
+async function loadModels() {
+  const res = await fetch('/api/models')
+  const models = await res.json()
+  
+  if (models.length === 0) {
+    document.getElementById('model-list').innerHTML = '<p class="text-xs text-[#444]">No models linked yet.</p>'
+    return
+  }
+  
+  const container = document.getElementById('model-list')
+  container.innerHTML = ''
+  
+  models.forEach(m => {
+    const div = document.createElement('div')
+    div.className = 'model-card rounded px-4 py-3 flex items-center justify-between'
+    
+    const nameSpan = document.createElement('span')
+    nameSpan.className = 'text-sm text-white'
+    nameSpan.textContent = m.name
+    
+    const providerSpan = document.createElement('span')
+    providerSpan.className = 'text-xs text-[#444] ml-2'
+    providerSpan.textContent = m.provider + ' - ' + m.model
+    
+    const leftDiv = document.createElement('div')
+    leftDiv.appendChild(nameSpan)
+    leftDiv.appendChild(providerSpan)
+    
+    if (m.base_url) {
+      const urlSpan = document.createElement('span')
+      urlSpan.className = 'text-xs text-[#333] ml-2'
+      urlSpan.textContent = m.base_url
+      leftDiv.appendChild(urlSpan)
+    }
+    
+    const editBtn = document.createElement('button')
+    editBtn.className = 'edit-btn px-2 py-1 text-xs text-[#666] hover:text-accent transition-colors border border-[#333] rounded'
+    editBtn.textContent = 'Edit'
+    editBtn.addEventListener('click', () => {
+      console.log('Edit clicked:', m.name)
+      editModel(m.name)
+    })
+    
+    const deleteBtn = document.createElement('button')
+    deleteBtn.className = 'delete-btn px-2 py-1 text-xs text-[#666] hover:text-red-400 transition-colors border border-[#333] rounded'
+    deleteBtn.textContent = 'Delete'
+    deleteBtn.addEventListener('click', () => {
+      console.log('Delete clicked:', m.name)
+      removeModel(m.name)
+    })
+    
+    const rightDiv = document.createElement('div')
+    rightDiv.className = 'flex items-center gap-2'
+    rightDiv.appendChild(editBtn)
+    rightDiv.appendChild(deleteBtn)
+    
+    div.appendChild(leftDiv)
+    div.appendChild(rightDiv)
+    
+    console.log('Added model card for:', m.name)
+    container.appendChild(div)
+  })
+}
+
+async function addModel() {
+  const name     = document.getElementById('f-name').value.trim()
+  const provider = document.getElementById('f-provider').value
+  const model    = document.getElementById('f-model').value.trim()
+  const api_key  = document.getElementById('f-key').value.trim()
+  const base_url = document.getElementById('f-url').value.trim() || DEFAULTS[provider].url
+
+  if (!name || !model) return showError('Name and model are required')
+
+  const res = await fetch('/api/models', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, provider, model, api_key, base_url }),
+  })
+  const data = await res.json()
+  if (!data.ok) return showError(data.error)
+
+  clearError()
+  document.getElementById('f-name').value = ''
+  document.getElementById('f-key').value = ''
+  loadModels()
+}
+
+async function removeModel(name) {
+  if (!confirm(`Delete model "${name}"?`)) return
+  await fetch(`/api/models/${name}`, { method: 'DELETE' })
+  loadModels()
+}
+
+async function editModel(name) {
+  const res = await fetch('/api/models')
+  const models = await res.json()
+  const model = models.find(m => m.name === name)
+  if (!model) return
+  
+  document.getElementById('f-name').value = model.name
+  document.getElementById('f-provider').value = model.provider
+  document.getElementById('f-model').value = model.model
+  document.getElementById('f-key').value = model.api_key || ''
+  document.getElementById('f-url').value = model.base_url || ''
+  
+  onProviderChange()
+  
+  const addBtn = document.querySelector('button[onclick="addModel()"]')
+  addBtn.textContent = 'Update model'
+  addBtn.setAttribute('onclick', '')
+  addBtn.onclick = async () => {
+    await addModel()
+    addBtn.textContent = 'Add model'
+    addBtn.setAttribute('onclick', 'addModel()')
+    addBtn.onclick = null
+    document.getElementById('f-name').value = ''
+    document.getElementById('f-key').value = ''
+    document.getElementById('f-model').value = DEFAULTS[document.getElementById('f-provider').value].model
+  }
+  
+  window.scrollTo({ top: document.querySelector('.model-card').offsetTop - 100, behavior: 'smooth' })
+}
+
+function showError(msg) {
+  const el = document.getElementById('error')
+  el.textContent = msg
+  el.classList.remove('hidden')
+}
+function clearError() { document.getElementById('error').classList.add('hidden') }
+
+async function logout() {
+  if (!confirm('Are you sure? This will delete all models and configuration.')) return
+  
+  try {
+    const res = await fetch('/api/logout', { method: 'POST' })
+    if (res.ok) {
+      window.location.href = '/setup'
+    } else {
+      showError('Failed to logout')
+    }
+  } catch (e) {
+    showError('Error: ' + e.message)
+  }
+}
+
+onProviderChange()
+loadModels()
+</script>
+</body>
+</html>

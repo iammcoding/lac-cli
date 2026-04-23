@@ -18,7 +18,7 @@ from html import escape as _esc
 from lac import config
 from lac.config import CONFIG_FILE
 from typing import Optional
-
+from server.router import clean_command
 from prompt_toolkit import PromptSession
 from prompt_toolkit.application import get_app
 from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
@@ -123,14 +123,15 @@ class LacCompleter(Completer):
                 )
 
 
-def run_command(cmd: str):
+def run_command(cmd: str, session_history: list[dict]) -> str:
     """
     Execute a shell command and print its output.
     Handles cd specially since subprocess can't change the parent process's dir.
+    Returns the output for session history.
     """
     cmd = cmd.strip()
     if not cmd:
-        return
+        return ""
 
     # built-ins
     if cmd == "logout":
@@ -140,7 +141,7 @@ def run_command(cmd: str):
                 CONFIG_FILE.unlink()
             console.print("[bold cyan]logged out — run `lac` again to set up[/bold cyan]")
             raise SystemExit
-        return
+        return ""
 
     if cmd == "exit":
         console.print("[bold cyan]bye 👋[/bold cyan]")
@@ -148,35 +149,41 @@ def run_command(cmd: str):
 
     if cmd == "clear":
         os.system("clear")
-        return
+        session_history.clear()
+        return ""
 
     if cmd.startswith("cd "):
-        # handle cd by actually changing the process directory
         path = cmd[3:].strip()
         try:
             os.chdir(os.path.expanduser(path))
-        except FileNotFoundError:
+            return f"Changed to {os.getcwd()}"
+        except FileNotFoundError as e:
             console.print(f"[red]cd: {path}: No such directory[/red]")
-        return
+            return str(e)
 
-    # run everything else
+    # run everything else and capture output
     try:
-        result = subprocess.run(cmd, shell=True, text=True)
-        # output is printed live (no capture) so it feels like a real shell
+        result = subprocess.run(cmd, shell=True, text=True, capture_output=True)
+        output = result.stdout + result.stderr
+        print(output, end="")
+        return output[:2000]  # limit to 2000 chars
     except Exception as e:
-        console.print(f"[red]error: {e}[/red]")
+        error_msg = f"error: {e}"
+        console.print(f"[red]{error_msg}[/red]")
+        return error_msg
 
 
 class AIAutoSuggest(AutoSuggest):
     """
     Ghost text suggestions powered by the AI server.
     Uses a dedicated WS connection so it never conflicts with the main client.
-    Debounces requests 300ms and falls back to history on failure.
+    Debounces requests and falls back to history on failure.
     """
 
-    def __init__(self, server_url: str, history_commands: list[str]):
+    def __init__(self, server_url: str, history_commands: list[str], debounce_ms: int = 150):
         self._server_url = server_url
         self._history = history_commands
+        self._debounce_ms = debounce_ms
         self._task: Optional[asyncio.Task] = None
         self._cache: dict[str, str] = {}
         self._client: Optional[LacClient] = None
@@ -219,7 +226,7 @@ class AIAutoSuggest(AutoSuggest):
         await self.connect()
 
     async def _fetch(self, buffer, text: str):
-        await asyncio.sleep(0.3)  # debounce
+        await asyncio.sleep(self._debounce_ms / 1000.0)  # convert ms to seconds
         if buffer.document.text_before_cursor != text:
             return
         suffix = ""
@@ -229,8 +236,8 @@ class AIAutoSuggest(AutoSuggest):
                 async for token in self._client.complete(
                     text, history=self._history, cwd=os.getcwd()
                 ):
-                    tokens.append(token)
-                result = "".join(tokens).strip()
+                    tokens.append(token) 
+                result = clean_command("".join(tokens))
                 # only use result if it completes what the user typed
                 if result.lower().startswith(text.lower()):
                     suffix = result[len(text):]
@@ -252,19 +259,22 @@ class AIAutoSuggest(AutoSuggest):
                 pass
 
 
-async def run_shell(client: Optional[LacClient] = None):
+async def run_shell(client: Optional[LacClient] = None, debounce_ms: int = 150):
     """
     Main shell loop.
 
     Args:
         client: connected LacClient instance (or None for offline mode)
+        debounce_ms: autocomplete debounce delay in milliseconds
     """
     history = InMemoryHistory()
     history_commands: list[str] = []
+    session_history: list[dict] = []  # {cmd: str, output: str}
     completer = LacCompleter(history_commands)
     auto_suggest = AIAutoSuggest(
         config.get("server", "ws://localhost:8765"),
         history_commands,
+        debounce_ms=debounce_ms,
     )
     if client and client.connected:
         await auto_suggest.connect()
@@ -316,6 +326,7 @@ async def run_shell(client: Optional[LacClient] = None):
                     cmd = await client.nl_to_command(
                         user_input,
                         history=history_commands,
+                        session=session_history[-10:],
                         cwd=os.getcwd(),
                     )
                 except Exception as e:
@@ -325,10 +336,16 @@ async def run_shell(client: Optional[LacClient] = None):
                     console.print(f"[dim]→ {cmd}[/dim]")
                     confirm = input("  run? [Y/n] ").strip().lower()
                     if confirm in ("", "y", "yes"):
-                        run_command(cmd)
+                        output = run_command(cmd, session_history)
+                        session_history.append({"cmd": cmd, "output": output})
+                        if len(session_history) > 20:
+                            session_history.pop(0)
                     continue
 
-            run_command(user_input)
+            output = run_command(user_input, session_history)
+            session_history.append({"cmd": user_input, "output": output})
+            if len(session_history) > 20:
+                session_history.pop(0)
 
         except KeyboardInterrupt:
             pass  # ignore Ctrl+C — use 'exit' to quit

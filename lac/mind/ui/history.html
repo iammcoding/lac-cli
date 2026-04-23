@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LacMind — History</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { accent: '#16aefe' } } } }</script>
+<script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+<style>
+  body { background: #0a0a0a; color: #e5e5e5; font-family: 'Inter', system-ui, sans-serif; }
+  .debate-card { background: #0f0f0f; border: 1px solid #1a1a1a; }
+  .debate-card:hover { border-color: #2a2a2a; }
+  .transcript-entry { border-left: 2px solid #1e1e1e; }
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+</style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+<header class="flex items-center justify-between px-8 py-5 border-b border-[#1a1a1a]">
+  <div class="flex items-center gap-3">
+    <img src="/lacicon.png" class="w-6 h-6" />
+    <span class="text-sm font-medium text-white">LacMind</span>
+    <span class="text-xs text-[#444] ml-1">history</span>
+  </div>
+  <a href="/" class="text-xs text-[#444] hover:text-white transition-colors flex items-center gap-1">
+    <iconify-icon icon="lucide:arrow-left" width="13"></iconify-icon> back
+  </a>
+</header>
+
+<main class="flex-1 px-8 py-8 max-w-3xl mx-auto w-full">
+  <div id="loading" class="text-xs text-[#444] flex items-center gap-2">
+    <iconify-icon icon="lucide:loader" width="13" class="animate-spin"></iconify-icon> loading...
+  </div>
+  <div id="empty" class="hidden text-xs text-[#444]">No debates yet.</div>
+  <div id="list" class="space-y-3"></div>
+</main>
+
+<script>
+async function load() {
+  const res = await fetch('/api/history')
+  const debates = await res.json()
+  document.getElementById('loading').classList.add('hidden')
+
+  if (!debates.length) {
+    document.getElementById('empty').classList.remove('hidden')
+    return
+  }
+
+  document.getElementById('list').innerHTML = debates.map(d => `
+    <div class="debate-card rounded-lg p-5 cursor-pointer" onclick="window.location.href='/chat/${d.id}'">
+      <div class="flex items-start justify-between gap-4 mb-2">
+        <p class="text-sm text-white leading-snug">${escHtml(d.prompt)}</p>
+        <span class="text-xs text-[#444] whitespace-nowrap">${formatDate(d.created_at)}</span>
+      </div>
+      <div class="flex items-center gap-3 mb-3">
+        ${(d.models || []).map(m => `<span class="text-xs text-[#444]">${escHtml(m)}</span>`).join('<span class="text-[#2a2a2a]">·</span>')}
+      </div>
+      ${d.consensus ? `
+        <div class="text-xs text-[#888] leading-relaxed border-t border-[#1a1a1a] pt-3 mt-3">
+          <span class="text-[#444] mr-1">consensus</span>${escHtml(d.consensus.slice(0, 200))}${d.consensus.length > 200 ? '…' : ''}
+        </div>
+      ` : ''}
+      <div id="transcript-${d.id}" class="hidden mt-4 space-y-3">
+        ${(d.transcript || []).map(e => `
+          <div class="transcript-entry pl-3">
+            <span class="text-xs text-[#444] block mb-1">${escHtml(e.model_name)} · confidence ${e.confidence?.toFixed(2) ?? '—'}</span>
+            <p class="text-xs text-[#888] leading-relaxed">${escHtml(e.content)}</p>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('')
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+}
+
+function formatDate(str) {
+  const d = new Date(str)
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' +
+         d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+}
+
+load()
+</script>
+</body>
+</html>

@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lac-cli"
-version = "0.1.0"
-description = "AI-powered terminal shell with real-time autocomplete and natural language commands"
+version = "0.2.0"
+description = "AI-powered terminal shell with real-time autocomplete and multi-model debate engine"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.9"
-keywords = ["terminal", "ai", "autocomplete", "shell", "cli"]
+keywords = ["terminal", "ai", "autocomplete", "shell", "cli", "debate", "multi-model"]
 
 dependencies = [
     "prompt_toolkit>=3.0.0",
@@ -17,9 +17,10 @@ dependencies = [
     "fastapi>=0.110.0",
     "uvicorn>=0.29.0",
     "httpx>=0.27.0",
-    "rich>=13.0.0",       # pretty terminal output
+    "rich>=13.0.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
+    "litellm>=1.0.0",
 ]
 
 [project.scripts]
@@ -28,4 +29,7 @@ lac-server = "server.main:run"  # `lac-server` starts the ws server
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["lac*", "server*"]
+include = ["lac*", "server*", "mind*"]
+
+[tool.setuptools.package-data]
+"lac.mind" = ["ui/*.html"]

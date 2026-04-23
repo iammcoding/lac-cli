@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LacMind</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { accent: '#16aefe' } } } }</script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body { background: #000; color: #e5e5e5; font-family: 'Inter', system-ui, sans-serif; }
+
+  /* ── input bar ── */
+  .input-container { background: #2f2f2f; border-radius: 26px; }
+  .input-field { background: transparent; border: none; color: #e5e5e5; min-width: 0; }
+  .input-field:focus { outline: none; }
+  .input-field::placeholder { color: #8e8e8e; }
+  .send-btn { background: #fff; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: opacity 0.2s; }
+  .send-btn:hover:not(:disabled) { opacity: 0.8; }
+  .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* ── messages ── */
+  .message-user {
+    background: #2f2f2f;
+    max-width: 80%;
+    width: fit-content;
+    margin-left: auto;         /* push to right */
+    border-radius: 18px;
+    padding: 10px 16px;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  /* ── thinking block ── */
+  .thinking-container { background: #1a1a1a; border-radius: 12px; overflow: hidden; width: 100%; }
+  .thinking-entry { border-left: 2px solid #2a2a2a; }
+  .thinking-content-scroll { max-height: 300px; overflow-y: auto; }
+  .thinking-text {
+    font-size: 0.8125rem; line-height: 1.6; color: #999;
+    white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word;
+  }
+
+  /* ── answer block ── */
+  .answer-container { width: 100%; min-width: 0; }
+  .answer-text {
+    font-size: 0.9375rem; line-height: 1.7; color: #e5e5e5;
+    word-break: break-word; overflow-wrap: break-word;
+    min-width: 0; width: 100%;
+  }
+  .answer-text p  { margin-bottom: 0.75rem; }
+  .answer-text ul,
+  .answer-text ol { margin-left: 1.5rem; margin-bottom: 0.75rem; }
+  .answer-text ul { list-style-type: disc; }
+  .answer-text ol { list-style-type: decimal; }
+  .answer-text li { margin-bottom: 0.25rem; }
+  .answer-text code {
+    background: #1a1a1a; padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem; font-size: 0.875rem;
+    word-break: break-all; display: inline-block; max-width: 100%;
+  }
+  .answer-text pre {
+    background: #1a1a1a; padding: 0.75rem; border-radius: 0.5rem;
+    overflow-x: auto; margin-bottom: 0.75rem; max-width: 100%;
+  }
+
+  .answer-text pre {
+  overflow-x: auto;
+  max-width: 100%;
+  white-space: pre;        /* ← add this */
+}
+.answer-text pre code {
+  white-space: pre;        /* ← add this */
+}
+  .answer-text pre code { background: transparent; padding: 0; word-break: normal; display: block; }
+  .answer-text strong { font-weight: 600; color: #fff; }
+  .answer-text em     { font-style: italic; }
+  .answer-text h1,
+  .answer-text h2,
+  .answer-text h3 { font-weight: 600; color: #fff; margin-bottom: 0.5rem; margin-top: 1rem; }
+  .answer-text h1 { font-size: 1.25rem; }
+  .answer-text h2 { font-size: 1.125rem; }
+  .answer-text h3 { font-size: 1rem; }
+
+  /* ── copy btn ── */
+  .copy-btn { opacity: 0; transition: opacity 0.2s; }
+  .answer-container:hover .copy-btn { opacity: 1; }
+
+  /* ── cursor ── */
+  .cursor {
+    display: inline-block; width: 2px; height: 12px;
+    background: #16aefe; margin-left: 1px;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ── misc ── */
+  .custom-input { background: #2f2f2f; border: none; color: #e5e5e5; }
+  .custom-input:focus { outline: none; border: 1px solid #16aefe; }
+  .custom-input::placeholder { color: #666; }
+
+  /* ── scrollbar ── */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: #000; }
+  ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+</style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+<!-- ── header ── -->
+<header class="flex items-center justify-between px-6 py-4 border-b border-[#1a1a1a] flex-shrink-0">
+  <div class="flex items-center gap-3">
+    <img src="/lacicon.png" class="w-7 h-7" />
+    <span class="text-base font-semibold text-white">LacMind</span>
+  </div>
+  <div class="flex items-center gap-5">
+    <button id="export-btn" onclick="exportAllConversations()" disabled
+      class="text-[#333] hover:text-white transition-colors text-sm flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-[#333]">
+      <i class="fa-solid fa-file-export"></i>
+      <span>Export PDF</span>
+    </button>
+    <button onclick="newChat()"
+      class="text-[#666] hover:text-white transition-colors text-sm flex items-center gap-2">
+      <i class="fa-solid fa-plus"></i>
+      <span>New</span>
+    </button>
+    <a href="/history"
+      class="text-[#666] hover:text-white transition-colors text-sm flex items-center gap-2">
+      <i class="fa-regular fa-clock"></i>
+      <span>History</span>
+    </a>
+    <a href="/settings"
+      class="text-[#666] hover:text-white transition-colors text-sm flex items-center gap-2">
+      <i class="fa-solid fa-sliders"></i>
+      <span>Settings</span>
+    </a>
+  </div>
+</header>
+
+<!-- ── main ── -->
+<div class="flex-1 flex flex-col overflow-hidden min-h-0">
+
+  <!-- centered input (initial state) -->
+  <div class="flex-1 flex items-center justify-center" id="centered-input">
+    <div class="max-w-3xl w-full px-4">
+      <div id="error-banner-center"
+        class="hidden mb-3 px-4 py-2.5 bg-red-950/50 text-red-400 text-sm rounded-xl flex items-center gap-2">
+        <i class="fa-solid fa-circle-exclamation"></i>
+        <span id="error-text-center"></span>
+      </div>
+
+      <div class="input-container px-4 py-2.5">
+        <div class="flex items-center gap-3">
+          <textarea id="prompt-input-center" rows="1"
+            placeholder="Message LacMind..."
+            class="input-field flex-1 text-[15px] resize-none max-h-52 leading-6 py-1"
+            onkeydown="handleKey(event)"
+            oninput="autoResize(this)"></textarea>
+          <button id="send-btn-center" onclick="sendMessage()" class="send-btn">
+            <i class="fa-solid fa-arrow-up text-[#676767] text-sm"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 mt-3 px-1">
+        <select id="duration-select"
+          class="px-3 py-1.5 rounded-lg text-xs bg-[#2f2f2f] border-0 text-[#999]"
+          onchange="handleDurationChange()">
+          <option value="30">30 sec</option>
+          <option value="60">1 min</option>
+          <option value="120" selected>2 min</option>
+          <option value="300">5 min</option>
+          <option value="600">10 min</option>
+          <option value="custom">Custom</option>
+        </select>
+        <input id="custom-duration" type="number" placeholder="Minutes" min="1" max="60"
+          class="custom-input hidden px-3 py-1.5 rounded-lg text-xs w-24" />
+        <div id="model-pills" class="flex gap-2 flex-wrap"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- chat mode (hidden initially) -->
+  <div class="hidden flex-1 flex flex-col overflow-hidden min-h-0" id="chat-mode">
+
+    <!-- scrollable messages -->
+    <div class="flex-1 overflow-y-auto overflow-x-hidden min-h-0" id="chat-area-wrapper">
+      <div class="max-w-3xl mx-auto w-full px-4 py-6 space-y-5" id="chat-container">
+        <!-- messages injected here -->
+      </div>
+    </div>
+
+    <!-- bottom input bar -->
+    <div class="flex-shrink-0 pb-6 pt-3 border-t border-[#1a1a1a]">
+      <div class="max-w-3xl mx-auto px-4">
+        <div id="error-banner"
+          class="hidden mb-3 px-4 py-2.5 bg-red-950/50 text-red-400 text-sm rounded-xl flex items-center gap-2">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <span id="error-text"></span>
+        </div>
+
+        <div class="input-container px-4 py-2.5">
+          <div class="flex items-center gap-3">
+            <textarea id="prompt-input" rows="1"
+              placeholder="Message LacMind..."
+              class="input-field flex-1 text-[15px] resize-none max-h-52 leading-6 py-1"
+              onkeydown="handleKeyBottom(event)"
+              oninput="autoResize(this)"></textarea>
+            <button id="send-btn" onclick="sendMessageBottom()" class="send-btn">
+              <i class="fa-solid fa-arrow-up text-[#676767] text-sm"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 mt-3 px-1">
+          <select id="duration-select-bottom"
+            class="px-3 py-1.5 rounded-lg text-xs bg-[#2f2f2f] border-0 text-[#999]"
+            onchange="handleDurationChangeBottom()">
+            <option value="30">30 sec</option>
+            <option value="60">1 min</option>
+            <option value="120" selected>2 min</option>
+            <option value="300">5 min</option>
+            <option value="600">10 min</option>
+            <option value="custom">Custom</option>
+          </select>
+          <input id="custom-duration-bottom" type="number" placeholder="Minutes" min="1" max="60"
+            class="custom-input hidden px-3 py-1.5 rounded-lg text-xs w-24" />
+          <div id="model-pills-bottom" class="flex gap-2 flex-wrap"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="/static/script.js"></script>
+</body>
+</html>

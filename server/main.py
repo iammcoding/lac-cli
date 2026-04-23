@@ -118,6 +118,7 @@ async def handle_completion(session: Session, msg: dict):
     """
     text    = msg.get("text", "")
     history = msg.get("history", [])
+    session_history = msg.get("session", [])
     cwd     = msg.get("cwd", "")
     mode    = msg.get("type")  # "complete" or "nl_command"
 
@@ -132,6 +133,7 @@ async def handle_completion(session: Session, msg: dict):
             provider=session.provider,
             text=text,
             history=history,
+            session=session_history,
             cwd=cwd,
             mode=mode,
             api_key=session.api_key,

@@ -1,3 +1,21 @@
+Metadata-Version: 2.4
+Name: lac-cli
+Version: 0.2.0
+Summary: AI-powered terminal shell with real-time autocomplete and multi-model debate engine
+License: MIT
+Keywords: terminal,ai,autocomplete,shell,cli,debate,multi-model
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: prompt_toolkit>=3.0.0
+Requires-Dist: websockets>=12.0
+Requires-Dist: fastapi>=0.110.0
+Requires-Dist: uvicorn>=0.29.0
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: python-dotenv>=1.0.0
+Requires-Dist: litellm>=1.0.0
+
 <img src="https://raw.githubusercontent.com/iammcoding/lac-cli/main/lacicon.png" width="120" />
 
 # lac-cli

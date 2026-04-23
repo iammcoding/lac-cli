@@ -1,0 +1,3 @@
+[console_scripts]
+lac = lac.main:main
+lac-server = server.main:run

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LacMind — Setup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { colors: { accent: '#16aefe' } } } }</script>
+<script src="https://code.iconify.design/3/3.1.1/iconify.min.js"></script>
+<style>
+  body { background: #0a0a0a; color: #e5e5e5; font-family: 'Inter', system-ui, sans-serif; }
+  input, select { background: #111; border: 1px solid #222; color: #e5e5e5; }
+  input:focus, select:focus { outline: none; border-color: #16aefe; }
+  .model-card { background: #111; border: 1px solid #1e1e1e; }
+  .model-card:hover { border-color: #2a2a2a; }
+</style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+<header class="flex items-center gap-3 px-8 py-5 border-b border-[#1a1a1a]">
+  <img src="/lacicon.png" class="w-7 h-7" />
+  <span class="text-sm font-medium text-white">LacMind</span>
+  <span class="text-xs text-[#444] ml-1">setup</span>
+</header>
+
+<main class="flex-1 flex flex-col items-center justify-center px-4 py-16">
+  <div class="w-full max-w-lg">
+    <h1 class="text-xl font-semibold text-white mb-1">Link your models</h1>
+    <p class="text-sm text-[#555] mb-8">Add at least 2 models to start a debate. You can add more later in settings.</p>
+
+    <!-- error banner -->
+    <div id="error" class="hidden mb-4 px-4 py-3 bg-red-950 border border-red-800 text-red-400 text-sm rounded"></div>
+
+    <!-- add model form -->
+    <div class="model-card rounded-lg p-5 mb-6">
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label class="text-xs text-[#555] mb-1 block">Name</label>
+          <input id="f-name" type="text" placeholder="e.g. my-gpt" class="w-full px-3 py-2 rounded text-sm" />
+        </div>
+        <div>
+          <label class="text-xs text-[#555] mb-1 block">Provider</label>
+          <select id="f-provider" class="w-full px-3 py-2 rounded text-sm" onchange="onProviderChange()">
+            <option value="openai">OpenAI</option>
+            <option value="claude">Claude</option>
+            <option value="ollama">Ollama (local)</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label class="text-xs text-[#555] mb-1 block">Model</label>
+          <input id="f-model" type="text" placeholder="e.g. gpt-4o" class="w-full px-3 py-2 rounded text-sm" />
+        </div>
+        <div id="key-field">
+          <label class="text-xs text-[#555] mb-1 block">API Key</label>
+          <input id="f-key" type="password" placeholder="sk-..." class="w-full px-3 py-2 rounded text-sm" />
+        </div>
+      </div>
+      <div id="url-field" class="mb-3 hidden">
+        <label class="text-xs text-[#555] mb-1 block">Base URL</label>
+        <input id="f-url" type="text" placeholder="http://localhost:11434" class="w-full px-3 py-2 rounded text-sm" />
+      </div>
+      <button onclick="addModel()" class="w-full py-2 bg-accent text-black text-sm font-medium rounded hover:opacity-90 transition-opacity">
+        Add model
+      </button>
+    </div>
+
+    <!-- model list -->
+    <div id="model-list" class="space-y-2 mb-8"></div>
+
+    <!-- continue -->
+    <button id="continue-btn" onclick="goToDebate()" class="hidden w-full py-2.5 bg-white text-black text-sm font-medium rounded hover:opacity-90 transition-opacity">
+      Continue to debate
+    </button>
+  </div>
+</main>
+
+<script>
+const DEFAULTS = {
+  openai:  { model: 'gpt-4o-mini',                url: 'https://api.openai.com',       showKey: true,  showUrl: false },
+  claude:  { model: 'claude-haiku-4-5-20251001',  url: 'https://api.anthropic.com',    showKey: true,  showUrl: false },
+  ollama:  { model: 'llama3',                     url: 'http://localhost:11434',        showKey: false, showUrl: true  },
+  custom:  { model: '',                            url: '',                              showKey: true,  showUrl: true  },
+}
+
+function onProviderChange() {
+  const p = document.getElementById('f-provider').value
+  const d = DEFAULTS[p]
+  document.getElementById('f-model').value = d.model
+  document.getElementById('f-url').value = d.url
+  document.getElementById('key-field').classList.toggle('hidden', !d.showKey)
+  document.getElementById('url-field').classList.toggle('hidden', !d.showUrl)
+}
+
+async function addModel() {
+  const name     = document.getElementById('f-name').value.trim()
+  const provider = document.getElementById('f-provider').value
+  const model    = document.getElementById('f-model').value.trim()
+  const api_key  = document.getElementById('f-key').value.trim()
+  const base_url = document.getElementById('f-url').value.trim() || DEFAULTS[provider].url
+
+  if (!name || !model) return showError('Name and model are required')
+
+  const res = await fetch('/api/models', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, provider, model, api_key, base_url }),
+  })
+  const data = await res.json()
+  if (!data.ok) return showError(data.error)
+
+  clearError()
+  document.getElementById('f-name').value = ''
+  document.getElementById('f-key').value = ''
+  loadModels()
+}
+
+async function loadModels() {
+  const res = await fetch('/api/models')
+  const models = await res.json()
+  const list = document.getElementById('model-list')
+  list.innerHTML = models.map(m => `
+    <div class="model-card rounded px-4 py-3 flex items-center justify-between">
+      <div>
+        <span class="text-sm text-white">${m.name}</span>
+        <span class="text-xs text-[#444] ml-2">${m.provider} · ${m.model}</span>
+      </div>
+      <button onclick="removeModel('${m.name}')" class="text-[#444] hover:text-red-400 transition-colors">
+        <iconify-icon icon="lucide:x" width="14"></iconify-icon>
+      </button>
+    </div>
+  `).join('')
+  document.getElementById('continue-btn').classList.toggle('hidden', models.length < 2)
+}
+
+async function removeModel(name) {
+  await fetch(`/api/models/${name}`, { method: 'DELETE' })
+  loadModels()
+}
+
+function goToDebate() { window.location.href = '/' }
+
+function showError(msg) {
+  const el = document.getElementById('error')
+  el.textContent = msg
+  el.classList.remove('hidden')
+}
+function clearError() { document.getElementById('error').classList.add('hidden') }
+
+onProviderChange()
+loadModels()
+</script>
+</body>
+</html>

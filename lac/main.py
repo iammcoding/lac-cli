@@ -72,7 +72,7 @@ def _stop_server():
         _server_process.terminate()
 
 
-async def _start(offline: bool = False):
+async def _start(offline: bool = False, debounce: int = 150):
     """Main async entry — connect to server then run shell."""
 
     client = None
@@ -99,7 +99,7 @@ async def _start(offline: bool = False):
                 client = None
 
     try:
-        await run_shell(client)
+        await run_shell(client, debounce_ms=debounce)
     finally:
         if client:
             await client.disconnect()
@@ -125,11 +125,26 @@ def main():
         help="run without connecting to lac-server",
     )
     parser.add_argument(
+        "--debounce",
+        type=int,
+        default=150,
+        metavar="MS",
+        help="autocomplete debounce delay in milliseconds (default: 150)",
+    )
+    parser.add_argument(
         "--version",
         action="version",
-        version="lac-cli 0.1.0",
+        version="lac-cli 0.2.0",
     )
+    subparsers = parser.add_subparsers(dest="command")
+    subparsers.add_parser("mind", help="launch LacMind multi-model debate UI")
     args = parser.parse_args()
+
+    # ── LacMind ───────────────────────────────────────────────────────────────
+    if args.command == "mind":
+        from lac.mind.main import launch
+        launch()
+        return
 
     # ── First run or forced setup ────────────────────────────────────────────
     if args.setup or not config.config_exists():
@@ -137,7 +152,7 @@ def main():
 
     # ── Launch shell ─────────────────────────────────────────────────────────
     try:
-        asyncio.run(_start(offline=args.offline))
+        asyncio.run(_start(offline=args.offline, debounce=args.debounce))
     except KeyboardInterrupt:
         console.print("\n[bold cyan]bye 👋[/bold cyan]")
         sys.exit(0)

@@ -124,6 +124,7 @@ class LacClient:
         self,
         natural_text: str,
         history: list[str],
+        session: list[dict],
         cwd: str = "",
     ) -> str:
         """
@@ -133,6 +134,7 @@ class LacClient:
         Args:
             natural_text: e.g. "list all python files recursively"
             history:      recent commands for context
+            session:      recent commands + outputs [{cmd: str, output: str}]
             cwd:          current directory
 
         Returns:
@@ -145,6 +147,7 @@ class LacClient:
             "type": "nl_command",
             "text": natural_text,
             "history": history[:10],
+            "session": session,
             "cwd": cwd,
         }
         await self.ws.send(json.dumps(payload))
